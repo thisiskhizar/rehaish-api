@@ -12,6 +12,8 @@ import { notFoundHandler } from "./middleware/notFoundHandler";
 import { databaseService } from "./services/database";
 
 /* ROUTE IMPORTS */
+import authRoutes from "./routes/authRoutes";
+import propertyRoutes from "./routes/propertyRoutes";
 
 const app = express();
 
@@ -64,6 +66,8 @@ app.get("/health", async (req, res) => {
 });
 
 /* API ROUTES */
+app.use("/auth", authRoutes);
+app.use("/properties", propertyRoutes);
 
 /* NOT FOUND HANDLER */
 app.use(notFoundHandler);
