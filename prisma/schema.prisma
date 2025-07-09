@@ -1,0 +1,268 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+enum PropertyHighlight {
+  NEAR_MARKET
+  NEAR_MOSQUE
+  NEAR_SCHOOL
+  NEAR_PARK
+  CORNER_PLOT
+  WIDE_ROAD_FRONT
+  SEPARATE_ENTRANCE
+  ROOFTOP_ACCESS
+  RECENTLY_RENOVATED
+  SOLAR_PANEL_READY
+  WATER_AVAILABILITY_24_7
+  NEAR_BUS_STOP
+}
+
+enum Amenity {
+  AC
+  UPS
+  GENERATOR
+  SOLAR_PANEL
+  WATER_TANK
+  BOREWELL_WATER
+  GEYSER
+  INTERNET_INSTALLED
+  CCTV_SECURITY
+  GUARD
+  GATED_COMMUNITY
+  GARAGE
+  BALCONY
+  SERVANT_QUARTER
+  LIFT
+  LAWN_OR_GARDEN
+  TILED_FLOORING
+  MARBLE_FLOORING
+}
+
+enum PropertyType {
+  HOUSE
+  UPPER_PORTION
+  LOWER_PORTION
+  APARTMENT
+  ROOM
+  STUDIO
+  PENTHOUSE
+  FARM_HOUSE
+  COMMERCIAL_UNIT
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum LeaseStatus {
+  ACTIVE
+  TERMINATED
+  COMPLETED
+  PENDING_SIGNATURE
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentType {
+  RENT
+  SECURITY_DEPOSIT
+  APPLICATION_FEE
+  LATE_FEE
+  MAINTENANCE_CHARGE
+  REFUND
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  EASYPAY
+  JAZZCASH
+  CARD
+  WALLET
+  CASH
+}
+
+model Manager {
+  id          String     @id // Cognito ID
+  name        String
+  email       String     @unique
+  phoneNumber String
+  
+  properties  Property[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Tenant {
+  id                  String        @id // Cognito ID
+  name                String
+  email               String        @unique
+  phoneNumber         String
+  
+  applications        Application[]
+  leases              Lease[]
+  payments            Payment[]
+  reviews             Review[]
+  
+  favoritedProperties Property[]    @relation("FavoritedProperties")
+  
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+}
+
+model Property {
+  id                String              @id @default(uuid())
+  slug              String              @unique
+  title             String
+  description       String
+  photoUrls         String[]
+  
+  pricePerMonth     Int
+  securityDeposit   Int
+  applicationFee    Int?
+  
+  propertyType      PropertyType
+  bedrooms          Int
+  bathrooms         Int
+  area              Int
+  isPetsAllowed     Boolean
+  isParkingIncluded Boolean
+  isFurnished       Boolean
+  
+  highlights        PropertyHighlight[]
+  amenities         Amenity[]
+  
+  postedDate        DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  averageRating     Float?
+  numberOfReviews   Int?
+  
+  locationId        Int
+  location          Location            @relation(fields: [locationId], references: [id])
+  
+  managerId         String
+  manager           Manager             @relation(fields: [managerId], references: [id])
+  
+  leases            Lease[]
+  applications      Application[]
+  payments          Payment[]
+  favoritedBy       Tenant[]            @relation("FavoritedProperties")
+  reviews           Review[]
+}
+
+model Location {
+  id          Int                                   @id @default(autoincrement())
+  
+  address     String
+  city        String
+  state       String
+  postalCode  String
+  country     String
+  coordinates Unsupported("geography(Point, 4326)") // PostGIS POINT
+  
+  createdAt   DateTime                              @default(now())
+  updatedAt   DateTime                              @updatedAt
+  properties  Property[]
+}
+
+model Application {
+  id             String            @id @default(uuid())
+  property       Property          @relation(fields: [propertyId], references: [id])
+  propertyId     String
+  
+  tenant         Tenant            @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  
+  fullName       String
+  email          String
+  phoneNumber    String
+  message        String?
+  
+  lease          Lease?            @relation("ApplicationToLease")
+  leaseId        String?
+  
+  status         ApplicationStatus @default(PENDING)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model Lease {
+  id                String       @id @default(uuid())
+  
+  property          Property     @relation(fields: [propertyId], references: [id])
+  propertyId        String
+  
+  tenant            Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId          String
+  
+  application       Application? @relation("ApplicationToLease", fields: [applicationId], references: [id])
+  applicationId     String?      @unique
+  
+  startDate         DateTime
+  endDate           DateTime
+  rentAmount        Int
+  securityDeposit   Int
+  paymentDueDate    Int
+  
+  leaseAgreementUrl String?
+  
+  status            LeaseStatus  @default(ACTIVE)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  payments          Payment[]
+}
+
+model Payment {
+  id          String        @id @default(uuid())
+  
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  
+  lease       Lease?        @relation(fields: [leaseId], references: [id])
+  leaseId     String?
+  
+  property    Property?     @relation(fields: [propertyId], references: [id])
+  propertyId  String?
+  
+  amount      Int
+  currency    String        @default("PKR")
+  paymentType PaymentType
+  status      PaymentStatus
+  method      PaymentMethod
+  
+  paymentDate DateTime
+  referenceId String?
+  receiptUrl  String?
+  note        String?
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  rating     Int      @db.SmallInt
+  comment    String?
+  
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  
+  property   Property @relation(fields: [propertyId], references: [id])
+  propertyId String
+  
+  createdAt  DateTime @default(now())
+}
