@@ -15,6 +15,7 @@ import { databaseService } from "./services/database";
 import authRoutes from "./routes/authRoutes";
 import propertyRoutes from "./routes/propertyRoutes";
 import locationRoutes from "./routes/locationRoutes";
+import tenantRoutes from "./routes/tenantRoutes";
 
 const app = express();
 
@@ -70,6 +71,7 @@ app.get("/health", async (req, res) => {
 app.use("/auth", authRoutes);
 app.use("/properties", propertyRoutes);
 app.use("/locations", locationRoutes);
+app.use("/tenants", tenantRoutes);
 
 /* NOT FOUND HANDLER */
 app.use(notFoundHandler);

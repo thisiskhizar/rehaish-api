@@ -321,3 +321,289 @@ export const updateTenantProfile = async (
     });
   }
 };
+
+export const getTenantFavorites = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const prisma = databaseService.getClient();
+
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message: "Authentication required",
+        code: "AUTH_REQUIRED",
+      });
+      return;
+    }
+
+    if (req.user.role !== "tenant") {
+      res.status(403).json({
+        success: false,
+        message: "Access denied. Tenant role required.",
+        code: "ACCESS_DENIED",
+      });
+      return;
+    }
+
+    const { id: cognitoId } = req.user;
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: cognitoId },
+      include: {
+        favoritedProperties: {
+          include: {
+            location: {
+              select: {
+                address: true,
+                city: true,
+                state: true,
+              },
+            },
+            manager: {
+              select: {
+                name: true,
+                phoneNumber: true,
+              },
+            },
+            _count: {
+              select: {
+                reviews: true,
+                applications: true,
+              },
+            },
+          },
+          orderBy: { postedDate: "desc" },
+          skip,
+          take: limit,
+        },
+      },
+    });
+
+    if (!tenant) {
+      res.status(404).json({
+        success: false,
+        message: "Tenant not found",
+        code: "TENANT_NOT_FOUND",
+      });
+      return;
+    }
+
+    // Get total count for pagination
+    const totalFavorites = await prisma.tenant.findUnique({
+      where: { id: cognitoId },
+      select: {
+        _count: {
+          select: {
+            favoritedProperties: true,
+          },
+        },
+      },
+    });
+
+    const totalCount = totalFavorites?._count.favoritedProperties || 0;
+    const totalPages = Math.ceil(totalCount / limit);
+
+    res.status(200).json({
+      success: true,
+      message: "Favorites retrieved successfully",
+      data: {
+        favorites: tenant.favoritedProperties,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalCount,
+          limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get tenant favorites error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve favorites",
+      code: "FAVORITES_FETCH_FAILED",
+    });
+  }
+};
+
+export const addToFavorites = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const prisma = databaseService.getClient();
+
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message: "Authentication required",
+        code: "AUTH_REQUIRED",
+      });
+      return;
+    }
+
+    if (req.user.role !== "tenant") {
+      res.status(403).json({
+        success: false,
+        message: "Access denied. Tenant role required.",
+        code: "ACCESS_DENIED",
+      });
+      return;
+    }
+
+    const { id: cognitoId } = req.user;
+    const { propertyId } = req.params;
+
+    // Check if property exists
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { id: true, title: true },
+    });
+
+    if (!property) {
+      res.status(404).json({
+        success: false,
+        message: "Property not found",
+        code: "PROPERTY_NOT_FOUND",
+      });
+      return;
+    }
+
+    // Check if already favorited
+    const existingFavorite = await prisma.tenant.findUnique({
+      where: { id: cognitoId },
+      select: {
+        favoritedProperties: {
+          where: { id: propertyId },
+          select: { id: true },
+        },
+      },
+    });
+
+    if (
+      existingFavorite?.favoritedProperties &&
+      existingFavorite.favoritedProperties.length > 0
+    ) {
+      res.status(409).json({
+        success: false,
+        message: "Property already in favorites",
+        code: "ALREADY_FAVORITED",
+      });
+      return;
+    }
+
+    // Add to favorites
+    await prisma.tenant.update({
+      where: { id: cognitoId },
+      data: {
+        favoritedProperties: {
+          connect: { id: propertyId },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Property added to favorites",
+      data: {
+        propertyId,
+        propertyTitle: property.title,
+        addedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Add to favorites error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to add property to favorites",
+      code: "ADD_FAVORITE_FAILED",
+    });
+  }
+};
+
+export const removeFromFavorites = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const prisma = databaseService.getClient();
+
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message: "Authentication required",
+        code: "AUTH_REQUIRED",
+      });
+      return;
+    }
+
+    if (req.user.role !== "tenant") {
+      res.status(403).json({
+        success: false,
+        message: "Access denied. Tenant role required.",
+        code: "ACCESS_DENIED",
+      });
+      return;
+    }
+
+    const { id: cognitoId } = req.user;
+    const { propertyId } = req.params;
+
+    // Check if property is in favorites
+    const favorite = await prisma.tenant.findUnique({
+      where: { id: cognitoId },
+      select: {
+        favoritedProperties: {
+          where: { id: propertyId },
+          select: { id: true, title: true },
+        },
+      },
+    });
+
+    if (!favorite?.favoritedProperties.length) {
+      res.status(404).json({
+        success: false,
+        message: "Property not found in favorites",
+        code: "FAVORITE_NOT_FOUND",
+      });
+      return;
+    }
+
+    // Remove from favorites
+    await prisma.tenant.update({
+      where: { id: cognitoId },
+      data: {
+        favoritedProperties: {
+          disconnect: { id: propertyId },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Property removed from favorites",
+      data: {
+        propertyId,
+        propertyTitle: favorite.favoritedProperties[0].title,
+        removedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Remove from favorites error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to remove property from favorites",
+      code: "REMOVE_FAVORITE_FAILED",
+    });
+  }
+};
