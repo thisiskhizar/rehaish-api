@@ -17,6 +17,7 @@ import propertyRoutes from "./routes/propertyRoutes";
 import locationRoutes from "./routes/locationRoutes";
 import tenantRoutes from "./routes/tenantRoutes";
 import managerRoutes from "./routes/managerRoutes";
+import applicationRoutes from "./routes/applicationRoutes";
 
 const app = express();
 
@@ -74,6 +75,7 @@ app.use("/properties", propertyRoutes);
 app.use("/locations", locationRoutes);
 app.use("/tenants", tenantRoutes);
 app.use("/managers", managerRoutes);
+app.use("/applications", applicationRoutes);
 
 /* NOT FOUND HANDLER */
 app.use(notFoundHandler);
