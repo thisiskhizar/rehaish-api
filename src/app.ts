@@ -18,6 +18,8 @@ import locationRoutes from "./routes/locationRoutes";
 import tenantRoutes from "./routes/tenantRoutes";
 import managerRoutes from "./routes/managerRoutes";
 import applicationRoutes from "./routes/applicationRoutes";
+import leaseRoutes from "./routes/leaseRoutes";
+import paymentRoutes from "./routes/paymentRoutes";
 
 const app = express();
 
@@ -76,6 +78,8 @@ app.use("/locations", locationRoutes);
 app.use("/tenants", tenantRoutes);
 app.use("/managers", managerRoutes);
 app.use("/applications", applicationRoutes);
+app.use("/", leaseRoutes);
+app.use("/", paymentRoutes);
 
 /* NOT FOUND HANDLER */
 app.use(notFoundHandler);
