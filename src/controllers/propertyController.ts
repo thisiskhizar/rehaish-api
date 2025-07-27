@@ -1,6 +1,10 @@
 import { Response, NextFunction } from "express";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { databaseService } from "../services/database";
+import {
+  addCoordinatesToProperties,
+  addCoordinatesToProperty,
+} from "../utils/coordinates";
 
 export const getProperties = async (
   req: AuthenticatedRequest,
@@ -164,11 +168,15 @@ export const getProperties = async (
     const hasNextPage = page < totalPages;
     const hasPrevPage = page > 1;
 
+    const propertiesWithCoordinates = await addCoordinatesToProperties(
+      properties
+    );
+
     res.status(200).json({
       success: true,
       message: "Properties retrieved successfully",
       data: {
-        properties,
+        properties: propertiesWithCoordinates,
         pagination: {
           currentPage: page,
           totalPages,
@@ -320,15 +328,20 @@ export const getPropertyById = async (
       },
     });
 
+    const propertyWithCoordinates = await addCoordinatesToProperty({
+      ...property,
+      isFavorited,
+    });
+    const similarPropertiesWithCoordinates = await addCoordinatesToProperties(
+      similarProperties
+    );
+
     res.status(200).json({
       success: true,
       message: "Property details retrieved successfully",
       data: {
-        property: {
-          ...property,
-          isFavorited,
-        },
-        similarProperties,
+        property: propertyWithCoordinates,
+        similarProperties: similarPropertiesWithCoordinates,
         metadata: {
           viewedAt: new Date().toISOString(),
           viewerRole: req.user?.role || "anonymous",

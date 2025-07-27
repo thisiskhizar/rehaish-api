@@ -1,6 +1,10 @@
 import { Response, NextFunction } from "express";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { databaseService } from "../services/database";
+import {
+  addCoordinatesToLocations,
+  addCoordinatesToProperties,
+} from "../utils/coordinates";
 
 export const getLocations = async (
   req: AuthenticatedRequest,
@@ -128,13 +132,17 @@ export const getLocations = async (
       };
     });
 
+    const locationsWithCoordinates = await addCoordinatesToLocations(
+      locationsWithStats
+    );
+
     res.status(200).json({
       success: true,
       message: "Locations retrieved successfully",
       data: {
-        locations: locationsWithStats,
+        locations: locationsWithCoordinates,
         metadata: {
-          count: locationsWithStats.length,
+          count: locationsWithCoordinates.length,
           filters: {
             query: q,
             city,
@@ -194,6 +202,9 @@ export const getNearbyProperties = async (
         l.state,
         l."postalCode",
         l.country,
+        -- Extract coordinates
+        ST_Y(ST_Transform(l.coordinates::geometry, 4326)) as location_latitude,
+        ST_X(ST_Transform(l.coordinates::geometry, 4326)) as location_longitude,
         m.id as manager_id,
         m.name as manager_name,
         m."phoneNumber" as manager_phone,
@@ -246,6 +257,10 @@ export const getNearbyProperties = async (
         state: row.state,
         postalCode: row.postalCode,
         country: row.country,
+        coordinates: {
+          latitude: Number(row.location_latitude),
+          longitude: Number(row.location_longitude),
+        },
       },
       manager: {
         id: row.manager_id,
@@ -461,21 +476,23 @@ export const getLocationSuggestions = async (
       take: 10,
     });
 
-    const formattedSuggestions = suggestions.map((location) => ({
-      id: location.id,
-      display: `${location.address}, ${location.city}`,
-      city: location.city,
-      state: location.state,
-      address: location.address,
-      propertyCount: location._count.properties,
-      type: "location" as const,
-    }));
+    const suggestionsWithCoordinates = await addCoordinatesToLocations(
+      suggestions.map((location) => ({
+        id: location.id,
+        display: `${location.address}, ${location.city}`,
+        city: location.city,
+        state: location.state,
+        address: location.address,
+        propertyCount: location._count.properties,
+        type: "location" as const,
+      }))
+    );
 
     res.status(200).json({
       success: true,
       message: "Location suggestions retrieved successfully",
       data: {
-        suggestions: formattedSuggestions,
+        suggestions: suggestionsWithCoordinates,
         query: q,
       },
     });

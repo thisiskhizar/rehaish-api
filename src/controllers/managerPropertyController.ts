@@ -3,6 +3,10 @@ import { AuthenticatedRequest } from "../middleware/auth";
 import { databaseService } from "../services/database";
 import { CreatePropertyInput, UpdatePropertyInput } from "../utils/validation";
 import { generatePropertySlug } from "../utils/helpers";
+import {
+  addCoordinatesToProperties,
+  addCoordinatesToProperty,
+} from "../utils/coordinates";
 
 export const createProperty = async (
   req: AuthenticatedRequest,
@@ -107,17 +111,13 @@ export const createProperty = async (
       },
     });
 
+    const propertyWithCoordinates = await addCoordinatesToProperty(property);
+
     res.status(201).json({
       success: true,
       message: "Property created successfully",
       data: {
-        property: {
-          ...property,
-          coordinates: {
-            latitude: propertyData.location.coordinates.latitude,
-            longitude: propertyData.location.coordinates.longitude,
-          },
-        },
+        property: propertyWithCoordinates,
       },
     });
   } catch (error) {
@@ -247,11 +247,15 @@ export const getManagerProperties = async (
     const hasNextPage = page < totalPages;
     const hasPrevPage = page > 1;
 
+    const propertiesWithCoordinates = await addCoordinatesToProperties(
+      properties
+    );
+
     res.status(200).json({
       success: true,
       message: "Properties retrieved successfully",
       data: {
-        properties,
+        properties: propertiesWithCoordinates,
         pagination: {
           currentPage: page,
           totalPages,
@@ -389,11 +393,13 @@ export const getManagerProperty = async (
       averageRating: property.averageRating,
     };
 
+    const propertyWithCoordinates = await addCoordinatesToProperty(property);
+
     res.status(200).json({
       success: true,
       message: "Property details retrieved successfully",
       data: {
-        property,
+        property: propertyWithCoordinates,
         stats,
       },
     });
@@ -494,11 +500,15 @@ export const updateProperty = async (
       },
     });
 
+    const propertyWithCoordinates = await addCoordinatesToProperty(
+      updatedProperty
+    );
+
     res.status(200).json({
       success: true,
       message: "Property updated successfully",
       data: {
-        property: updatedProperty,
+        property: propertyWithCoordinates,
       },
     });
   } catch (error) {
